@@ -23,7 +23,7 @@ public class User {
     @Column(unique = true)
     private String userId;
     private String name;
-    @Column(unique = true,nullable = false)
+    @Column(unique = true, nullable = false)
     private String email;
     private String password;
     private String verifyOtp;

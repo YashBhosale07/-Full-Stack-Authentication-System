@@ -18,6 +18,6 @@ public class ProfileRequestDto {
     @NotBlank(message = "Email Should not be blank")
     @Email(message = "Invalid Email")
     private String email;
-    @Size(min = 6,max = 18,message = "Password should be min 6 character and less than 18 character")
+    @Size(min = 6, max = 18, message = "Password should be min 6 character and less than 18 character")
     private String password;
 }
