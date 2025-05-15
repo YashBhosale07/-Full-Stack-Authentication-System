@@ -5,6 +5,7 @@ import in.yash.VerifyIt.GlobalExceptionHandler.EmailAlreadyExistsException;
 import in.yash.VerifyIt.dto.ProfileRequestDto;
 import in.yash.VerifyIt.dto.ProfileResponseDto;
 import in.yash.VerifyIt.repository.UserRepository;
+import in.yash.VerifyIt.service.EmailService;
 import in.yash.VerifyIt.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -12,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Random;
 import java.util.UUID;
 
 @Service
@@ -21,6 +23,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     public ProfileResponseDto createProfile(ProfileRequestDto request) {
         boolean emailExits = userRepository.existsByEmail(request.getEmail());
@@ -36,6 +39,80 @@ public class ProfileServiceImpl implements ProfileService {
     public ProfileResponseDto getProfile(String email) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
         return modelMapper.map(user, ProfileResponseDto.class);
+    }
+
+    @Override
+    public void resendOtp(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        //Generate 6 digit otp
+        String otp=String.valueOf(new Random().nextInt(900000) + 100000);
+        long expiryTime = System.currentTimeMillis() + (10 * 60 * 1000);
+        user.setResetOtp(otp);
+        user.setResetOtpExpireAt(expiryTime);
+        userRepository.save(user);
+        try {
+            emailService.sendResetOtpEmail(user.getEmail(),otp);
+        }catch (Exception e){
+            throw new RuntimeException("Unable to send email");
+        }
+
+    }
+
+    @Override
+    public void resetPassword(String email,String otp,String resetPassword) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        if(user.getResetOtp()==null || !user.getResetOtp().equals(otp)){
+            throw new RuntimeException("Otp Invalid");
+        }
+        if(user.getResetOtpExpireAt()<System.currentTimeMillis()){
+            throw new RuntimeException("Otp Expired");
+        }
+        user.setPassword(passwordEncoder.encode(resetPassword));
+        user.setResetOtp(null);
+        user.setResetOtpExpireAt(0L);
+        userRepository.save(user);
+
+    }
+
+    @Override
+    public void sendOtp(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        //Generate 6 digit otp
+        if(user.getIsAccountVerified()!=null && user.getIsAccountVerified()){
+            return;
+        }
+        String otp=String.valueOf(new Random().nextInt(900000) + 100000);
+        long expiryTime = System.currentTimeMillis() + (10 * 60 * 1000);
+        user.setVerifyOtp(otp);
+        user.setVerifyOtpExpireAt(expiryTime);
+        userRepository.save(user);
+        try {
+            emailService.sendOtpEmail(user.getEmail(),otp);
+        }catch (Exception ex){
+            throw new RuntimeException("Unable to send email");
+        }
+    }
+
+    @Override
+    public void verifyOtp(String email, String otp) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        if(user.getVerifyOtp()==null || !user.getVerifyOtp().equals(otp)){
+            throw new RuntimeException("Invalid otp");
+        }
+        if(user.getVerifyOtpExpireAt()<System.currentTimeMillis()){
+            throw new RuntimeException("OTP Expired");
+        }
+        user.setIsAccountVerified(true);
+        user.setVerifyOtp(null);
+        user.setVerifyOtpExpireAt(0L);
+        userRepository.save(user);
+
+    }
+
+    @Override
+    public String getLoggedInUserId(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        return user.getUserId();
     }
 
     private User converToUser(ProfileRequestDto request) {

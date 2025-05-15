@@ -2,6 +2,7 @@ package in.yash.VerifyIt.RestController;
 
 import in.yash.VerifyIt.dto.ProfileRequestDto;
 import in.yash.VerifyIt.dto.ProfileResponseDto;
+import in.yash.VerifyIt.service.EmailService;
 import in.yash.VerifyIt.service.ProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,12 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProfileController {
 
     private final ProfileService profileService;
+    private final EmailService emailService;
 
 
     @PostMapping("/register")
     public ResponseEntity<ProfileResponseDto> register(@Valid @RequestBody ProfileRequestDto request) {
         ProfileResponseDto response = profileService.createProfile(request);
-        //Todo send welcome email
+        emailService.sendWelcomeEmail(response.getEmail(),response.getName());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
